@@ -1,0 +1,54 @@
+diff --git a/lib/http.js b/lib/http.js
+index 94f1b14..cbd975a 100644
+--- a/lib/http.js
++++ b/lib/http.js
+@@ -12,6 +12,9 @@ export function requestJson({
+   body = null,
+   timeoutMs = 30000,
+   lookup = undefined,
++  // Safety cap to reduce memory/DoS risk if a provider returns an unexpectedly large payload.
++  // 1 MiB is far above typical chat completion responses.
++  maxResponseBytes = 1024 * 1024,
+ }) {
+   return new Promise((resolve, reject) => {
+     try {
+@@ -30,10 +33,17 @@ export function requestJson({
+         },
+         (res) => {
+           let data = '';
++          let bytes = 0;
+           res.setEncoding('utf8');
+           res.on('data', (chunk) => {
++            bytes += Buffer.byteLength(chunk, 'utf8');
++            if (bytes > maxResponseBytes) {
++              res.destroy(new Error('Response too large'));
++              return;
++            }
+             data += chunk;
+           });
++          res.on('error', (err) => reject(err));
+           res.on('end', () => {
+             const status = res.statusCode || 0;
+             let json = null;
+diff --git a/lib/llm/provider.js b/lib/llm/provider.js
+index 3d4ef6e..23ce23f 100644
+--- a/lib/llm/provider.js
++++ b/lib/llm/provider.js
+@@ -124,6 +124,7 @@ export async function validateAndNormalizeProviderBaseUrl(inputBaseUrl) {
+   );
+   const allowPrivateIps = envBool('EZCV_ALLOW_PRIVATE_LLM_IPS', DEFAULT_ALLOW_PRIVATE_IPS);
+   const allowHosts = envCsv('EZCV_LLM_HOST_ALLOWLIST');
++  const requireAllowlist = envBool('EZCV_REQUIRE_LLM_HOST_ALLOWLIST', false);
+ 
+   const baseUrl = normalizeBaseUrl(inputBaseUrl);
+   if (!baseUrl) throw new Error('Invalid provider URL');
+@@ -141,6 +142,9 @@ export async function validateAndNormalizeProviderBaseUrl(inputBaseUrl) {
+   }
+ 
+   // Optional allowlist of hostnames (recommended for multi-tenant hosted deployments).
++  if (requireAllowlist && allowHosts.length === 0) {
++    throw new Error('Invalid provider URL');
++  }
+   if (allowHosts.length > 0) {
+     const host = u.hostname.toLowerCase();
+     const ok = allowHosts.includes(host);
