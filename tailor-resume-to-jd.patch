@@ -1,0 +1,418 @@
+diff --git a/components/AiAssist/index.jsx b/components/AiAssist/index.jsx
+index 1d94afd..7e11b7d 100644
+--- a/components/AiAssist/index.jsx
++++ b/components/AiAssist/index.jsx
+@@ -290,6 +290,7 @@ export default function AiAssist({
+   onRun,
+   onApply,
+   onGenerate,
++  onTailor,
+   onApplyDraft,
+   onUndo,
+   canUndo,
+@@ -316,6 +317,12 @@ export default function AiAssist({
+   const [busyDraft, setBusyDraft] = useState(false);
+   const [draftError, setDraftError] = useState(null);
+ 
++  // Tailor existing resume state
++  const [tailoredText, setTailoredText] = useState(null);
++  const [tailorWarnings, setTailorWarnings] = useState([]);
++  const [busyTailor, setBusyTailor] = useState(false);
++  const [tailorError, setTailorError] = useState(null);
++
+   // Floating/resizable dock state (persists in localStorage)
+   const dockRef = useRef(null);
+   const dragRef = useRef({ active: false, pointerId: null, dx: 0, dy: 0 });
+@@ -525,6 +532,40 @@ export default function AiAssist({
+     }
+   };
+ 
++
++  const runTailor = async () => {
++    setBusyTailor(true);
++    setTailorError(null);
++    setTailorWarnings([]);
++    setTailoredText(null);
++
++    try {
++      if (!onTailor) {
++        setTailorError('Tailor is not configured.');
++        return;
++      }
++      if (!jobDescription || jobDescription.trim().length < 20) {
++        setTailorError('Paste a job description first.');
++        return;
++      }
++
++      const out = await onTailor({
++        jobDescription,
++        safeMode,
++      });
++
++      if (out.ok === false) {
++        setTailorError(out.error || 'Failed to tailor');
++        return;
++      }
++
++      setTailoredText(out.tailoredText || '');
++      setTailorWarnings(out.warnings || []);
++    } finally {
++      setBusyTailor(false);
++    }
++  };
++
+   const hardError = result && result.ok === false;
+   const updated = result && result.updatedSectionText;
+   const canEdit = selectedText && selectedText.trim().length > 0;
+@@ -599,7 +640,104 @@ export default function AiAssist({
+         <Tabs>
+           <TabButton
+             type="button"
+-            active={activeTab === 'edit'}
++            active=
++
++        {activeTab === 'tailor' ? (
++          <Panel>
++            <Row style={{ alignItems: 'stretch' }}>
++              <div style={{ flex: 1, minWidth: 280 }}>
++                <div style={{ fontWeight: 900, marginBottom: 6 }}>
++                  Paste a job description
++                </div>
++
++                <Textarea
++                  value={jobDescription}
++                  onChange={(e) => setJobDescription(e.target.value)}
++                  placeholder="Paste the job description here. This will rewrite your existing resume (all sections) to better match the JD, without inventing experience."
++                  style={{ minHeight: 180 }}
++                />
++
++                <div style={{ marginTop: 10 }}>
++                  <Label>
++                    <input
++                      type="checkbox"
++                      checked={safeMode}
++                      onChange={(e) => setSafeMode(e.target.checked)}
++                    />
++                    Interview-safe mode
++                  </Label>
++                </div>
++
++                <Row style={{ marginTop: 10, justifyContent: 'flex-end' }}>
++                  <Button
++                    content={busyTailor ? 'Tailoring…' : 'Tailor my resume'}
++                    onClick={busyTailor ? null : runTailor}
++                    style={{
++                      padding: '10px 16px',
++                      background: COLORS.darkBrown,
++                      color: 'white',
++                      opacity: busyTailor ? 0.7 : 1,
++                    }}
++                    hoverStyle={{ background: COLORS.red, color: COLORS.darkBrown }}
++                  />
++                </Row>
++
++                {tailorError ? (
++                  <Warn>
++                    <div style={{ fontWeight: 800 }}>Tailoring failed</div>
++                    <div style={{ marginTop: 6 }}>{tailorError}</div>
++                  </Warn>
++                ) : null}
++
++                {tailorWarnings && tailorWarnings.length > 0 ? (
++                  <Warn style={{ marginTop: 10 }}>
++                    <div style={{ fontWeight: 800 }}>Warnings</div>
++                    <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
++                      {tailorWarnings.map((w) => (
++                        <li key={w}>{w}</li>
++                      ))}
++                    </ul>
++                  </Warn>
++                ) : null}
++              </div>
++
++              <div style={{ flex: 1, minWidth: 280 }}>
++                <Box>
++                  <BoxHeader>Proposed tailored resume (ezcv format)</BoxHeader>
++                  <Pre>{tailoredText || 'Run tailoring to see a proposal.'}</Pre>
++                </Box>
++
++                <Row style={{ marginTop: 10, justifyContent: 'flex-end' }}>
++                  <Button
++                    content="Apply tailored resume"
++                    onClick={
++                      tailoredText && tailoredText.trim().length > 0
++                        ? () => onApplyDraft(tailoredText)
++                        : null
++                    }
++                    style={{
++                      padding: '10px 16px',
++                      background: COLORS.green,
++                      opacity:
++                        tailoredText && tailoredText.trim().length > 0 ? 1 : 0.55,
++                      cursor:
++                        tailoredText && tailoredText.trim().length > 0
++                          ? 'pointer'
++                          : 'not-allowed',
++                    }}
++                  />
++                </Row>
++
++                <SmallNote>
++                  This rewrites <b>your current resume</b> to better match the job description.
++                  It should not add new claims. Review before applying.
++                </SmallNote>
++              </div>
++            </Row>
++          </Panel>
++        ) : null}
++
++{activeTab === 'edit'}
+             disabled={!canEdit}
+             onClick={() => safeSetTab('edit')}
+             title={!canEdit ? 'Click a section in the preview first' : ''}
+diff --git a/components/Menu/Windows/AiWindow/index.jsx b/components/Menu/Windows/AiWindow/index.jsx
+index c45ce0c..b2399f3 100644
+--- a/components/Menu/Windows/AiWindow/index.jsx
++++ b/components/Menu/Windows/AiWindow/index.jsx
+@@ -139,6 +139,8 @@ export default function AiWindow({
+   onOpenAi,
+   onGenerateDraft,
+   onApplyDraft,
++  onTailorResume,
++  resumeText,
+ }) {
+   const providerMeta = useMemo(() => PROVIDERS[aiSettings?.providerId], [
+     aiSettings?.providerId,
+@@ -154,6 +156,13 @@ export default function AiWindow({
+   const [error, setError] = useState(null);
+   const [warnings, setWarnings] = useState([]);
+ 
++  // Tailor existing resume state
++  const [tailorJD, setTailorJD] = useState('');
++  const [tailorBusy, setTailorBusy] = useState(false);
++  const [tailored, setTailored] = useState('');
++  const [tailorError, setTailorError] = useState(null);
++  const [tailorWarnings, setTailorWarnings] = useState([]);
++
+   const generate = async () => {
+     setBusy(true);
+     setError(null);
+@@ -179,6 +188,43 @@ export default function AiWindow({
+     }
+   };
+ 
++
++  const tailor = async () => {
++    setTailorBusy(true);
++    setTailorError(null);
++    setTailorWarnings([]);
++    try {
++      if (!onTailorResume) {
++        setTailorError('Tailor is not wired up.');
++        return;
++      }
++      if (!resumeText || resumeText.trim().length === 0) {
++        setTailorError('No resume text found. Add content first.');
++        return;
++      }
++      if (!tailorJD || tailorJD.trim().length < 20) {
++        setTailorError('Paste a job description first.');
++        return;
++      }
++
++      const out = await onTailorResume({
++        jobDescription: tailorJD,
++        safeMode: aiSettings?.safeMode !== false,
++      });
++
++      if (out.ok === false) {
++        setTailorError(out.error || 'Failed to tailor');
++        setTailored('');
++        return;
++      }
++
++      setTailored(out.tailoredText || '');
++      setTailorWarnings(out.warnings || []);
++    } finally {
++      setTailorBusy(false);
++    }
++  };
++
+   return (
+     <Container>
+       <Card>
+@@ -287,6 +333,101 @@ export default function AiWindow({
+         </Desc>
+       </Card>
+ 
++      <Card>
++        <Title>Tailor current resume to a job description</Title>
++        <Desc>
++          Paste the job description and generate a revised version of your <b>existing</b> resume.
++          It rewrites wording and bullets to match relevant keywords <b>without inventing</b> new experience.
++        </Desc>
++
++        <div style={{ marginBottom: 10 }}>
++          <Label>Job description</Label>
++          <Textarea
++            value={tailorJD}
++            onChange={(e) => setTailorJD(e.target.value)}
++            placeholder="Paste the job description here…"
++            style={{ minHeight: 120 }}
++          />
++        </div>
++
++        <div style={{ marginBottom: 10 }}>
++          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
++            <input
++              type="checkbox"
++              checked={aiSettings?.safeMode !== false}
++              onChange={(e) =>
++                setAiSettings({ ...(aiSettings || {}), safeMode: e.target.checked })
++              }
++            />
++            Interview-safe mode
++          </label>
++        </div>
++
++        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
++          <Button
++            content={tailorBusy ? 'Tailoring…' : 'Tailor my resume'}
++            onClick={tailorBusy ? null : tailor}
++            style={{
++              padding: '10px 14px',
++              background: COLORS.darkBrown,
++              color: 'white',
++              opacity: tailorBusy ? 0.7 : 1,
++            }}
++            hoverStyle={{ background: COLORS.red, color: COLORS.darkBrown }}
++          />
++        </div>
++
++        {tailorError ? (
++          <div style={{ marginTop: 10, fontSize: 12, color: 'crimson' }}>
++            {tailorError}
++          </div>
++        ) : null}
++
++        {tailorWarnings && tailorWarnings.length > 0 ? (
++          <div style={{ marginTop: 10, fontSize: 12 }}>
++            <div style={{ fontWeight: 900, marginBottom: 6 }}>Warnings</div>
++            <ul style={{ margin: 0, paddingLeft: 18 }}>
++              {tailorWarnings.map((w) => (
++                <li key={w}>{w}</li>
++              ))}
++            </ul>
++          </div>
++        ) : null}
++
++        <div style={{ marginTop: 10 }}>
++          <Label>Proposed resume text (ezcv format)</Label>
++          <Pre>{tailored || 'Run tailoring to see a proposal here.'}</Pre>
++
++          <div
++            style={{
++              display: 'flex',
++              gap: 10,
++              justifyContent: 'flex-end',
++              marginTop: 10,
++            }}
++          >
++            <Button
++              content="Apply tailored resume"
++              onClick={
++                tailored && tailored.trim().length > 0
++                  ? () => onApplyDraft(tailored)
++                  : null
++              }
++              style={{
++                padding: '10px 14px',
++                background: COLORS.green,
++                opacity: tailored && tailored.trim().length > 0 ? 1 : 0.55,
++                cursor:
++                  tailored && tailored.trim().length > 0
++                    ? 'pointer'
++                    : 'not-allowed',
++              }}
++            />
++          </div>
++        </div>
++      </Card>
++
++
+       <Card>
+         <Title>Generate a resume from raw notes</Title>
+         <Desc>
+diff --git a/components/Menu/index.jsx b/components/Menu/index.jsx
+index 6de5557..4a322a4 100644
+--- a/components/Menu/index.jsx
++++ b/components/Menu/index.jsx
+@@ -17,6 +17,7 @@ export default function Menu({
+   onOpenAi,
+   onGenerateDraft,
+   onApplyDraft,
++  onTailorResume,
+ }) {
+   const textbox = useRef();
+ 
+@@ -54,6 +55,8 @@ export default function Menu({
+       onOpenAi={onOpenAi}
+       onGenerateDraft={onGenerateDraft}
+       onApplyDraft={onApplyDraft}
++      onTailorResume={onTailorResume}
++      resumeText={text}
+     />
+   );
+ 
+diff --git a/pages/builder.jsx b/pages/builder.jsx
+index 8745c81..5d08a0e 100644
+--- a/pages/builder.jsx
++++ b/pages/builder.jsx
+@@ -329,6 +329,31 @@ export default function Builder() {
+     return response.json();
+   };
+ 
++  const onTailorResumeAi = async ({ jobDescription, safeMode }) => {
++    const effectiveSafeMode =
++      typeof safeMode === 'boolean' ? safeMode : aiSettings.safeMode !== false;
++
++    const response = await fetch('/api/llm/tailor-resume', {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json' },
++      body: JSON.stringify({
++        provider: {
++          providerId: aiSettings.providerId,
++          baseUrl: aiSettings.baseUrl,
++          apiKey: aiSettings.apiKey,
++          model: aiSettings.model,
++          extraHeaders: aiSettings.extraHeaders || {},
++        },
++        resumeText: text,
++        jobDescription,
++        safeMode: effectiveSafeMode,
++      }),
++    });
++
++    return response.json();
++  };
++
++
+   /* Resume reference for print */
+   const resume = useRef();
+ 
+@@ -399,6 +424,7 @@ export default function Builder() {
+                 }}
+                 onGenerateDraft={onGenerateAiDraft}
+                 onApplyDraft={onApplyDraft}
++                onTailorResume={onTailorResumeAi}
+               />
+             </div>
+           </ColumnLeft>
+@@ -450,6 +476,7 @@ export default function Builder() {
+           onRun={onRunAi}
+           onApply={onApplyAi}
+           onGenerate={onGenerateAiDraft}
++          onTailor={onTailorResumeAi}
+           onApplyDraft={onApplyDraft}
+           onUndo={onUndo}
+           canUndo={history.length > 0}

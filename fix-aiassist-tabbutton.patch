@@ -1,0 +1,20 @@
+diff --git a/components/AiAssist/index.jsx b/components/AiAssist/index.jsx
+--- a/components/AiAssist/index.jsx
++++ b/components/AiAssist/index.jsx
+@@
+-{activeTab === 'edit'}
+-            disabled={!canEdit}
+-            onClick={() => safeSetTab('edit')}
+-            title={!canEdit ? 'Click a section in the preview first' : ''}
+-          >
+-            Edit Section
+-          </TabButton>
++          <TabButton
++            type="button"
++            active={activeTab === 'edit'}
++            disabled={!canEdit}
++            onClick={() => safeSetTab('edit')}
++            title={!canEdit ? 'Click a section in the preview first' : ''}
++          >
++            Edit Section
++          </TabButton>

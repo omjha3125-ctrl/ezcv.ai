@@ -1,0 +1,495 @@
+diff --git a/pages/api/llm/edit-section.js b/pages/api/llm/edit-section.js
+index b32e696..dab8abc 100644
+--- a/pages/api/llm/edit-section.js
++++ b/pages/api/llm/edit-section.js
+@@ -1,5 +1,67 @@
++import fs from 'fs';
++import path from 'path';
+ import { requestJson } from '../../../lib/http';
+ 
++// Optional override: create prompts/ezcv_dsl_rules.txt in your project root.
++const DEFAULT_DSL_RULES = `EZCV PLAINTEXT DSL RULES (v1)
++
++You MUST output ezcv plaintext only. No markdown. No commentary.
++
++1) Blocks and triggers
++- Start with a header block:
++  #header Full Name
++
++- Resume sections use one of these triggers (exactly):
++  #section  <Header>
++  #section1 <Header>
++  #section2 <Header>
++
++- Page breaks use this trigger on its own line:
++  #pagebreak
++
++2) Subsection fields inside a section
++- Within a section, entries use these field lines:
++  #title ...
++  #subtitle ...
++  #description ...
++  #date ...
++- Additional lines are plain text.
++- Bullet lines start with "- " (dash + space).
++
++3) Spacing / readability rules
++- Put ONE blank line after each section trigger line.
++- Put ONE blank line between entries (between two #title blocks).
++- Do NOT cram everything into a single paragraph.
++
++4) Header formatting rules (VERY IMPORTANT)
++- After "#header Name", include 3–5 plain contact items on separate lines.
++- Do NOT use labels like "Email:" or "Phone:".
++- Prefer patterns like:
++  mailto:someone@example.com
++  (111) 222-3333
++  github.com/user
++  linkedin.com/in/user
++  yoursite.com
++
++5) Truthfulness (non-negotiable)
++- Do NOT invent employers, job titles, tools, certifications, degrees, dates, or metrics.
++- If info is missing, use [fill] placeholders instead of fabricating.
++
++6) Page break rule
++- If the resume is likely to exceed one page OR there are more than 4 sections, insert at least ONE #pagebreak.
++- Default location: after Experience (or after Projects if no Experience).
++- "#pagebreak" must be on its own line with blank lines around it.
++`;
++
++function loadDslRules() {
++  try {
++    const p = path.join(process.cwd(), 'prompts', 'ezcv_dsl_rules.txt');
++    return fs.readFileSync(p, 'utf8');
++  } catch (e) {
++    return DEFAULT_DSL_RULES;
++  }
++}
++
+ function normalizeBaseUrl(baseUrl) {
+   if (!baseUrl) return '';
+   return baseUrl.replace(/\/+$/, '');
+@@ -75,7 +137,13 @@ export default async function handler(req, res) {
+ 
+     const mustKeepHeader = firstNonEmptyLine(sectionText);
+ 
+-    const system = `You are an expert resume editor.
++    const dslRules = loadDslRules();
++    const safeLine = safeMode
++      ? '- Interview-safe mode is ON: do not introduce any new numbers/metrics that are not already present in the input section.\n'
++      : '';
++    const system = `${dslRules}
++
++You are an expert resume editor.
+ You will be given ONE resume section in ezcv plaintext format.
+ 
+ Hard rules:
+@@ -84,9 +152,9 @@ Hard rules:
+ - Preserve the ezcv trigger format (#section/#section1/#section2/#header plus field lines like #title/#subtitle/#date/#description).
+ - Do not add new sections.
+ - Do not invent experience, employers, roles, tools, certifications, or metrics.
+-${safeMode ? '- Interview-safe mode is ON: do not introduce any new numbers/metrics that are not already present in the input section.
+-' : ''}
+-If the instruction asks for something unsupported by the text, prefer a conservative rewrite rather than adding new claims.`;
++${safeLine}
++If the instruction asks for something unsupported by the text, prefer a conservative rewrite rather than adding new claims.
++`;
+ 
+     const user = `INSTRUCTION:\n${instruction.trim()}\n\n${
+       jobDescription && jobDescription.trim().length > 0
+diff --git a/pages/api/llm/generate-resume.js b/pages/api/llm/generate-resume.js
+index feafac8..1d60094 100644
+--- a/pages/api/llm/generate-resume.js
++++ b/pages/api/llm/generate-resume.js
+@@ -1,5 +1,72 @@
++import fs from 'fs';
++import path from 'path';
+ import { requestJson } from '../../../lib/http';
+ 
++// Optional override: create prompts/ezcv_dsl_rules.txt in your project root.
++const DEFAULT_DSL_RULES = `EZCV PLAINTEXT DSL RULES (v1)
++
++You MUST output ezcv plaintext only. No markdown. No commentary.
++
++1) Blocks and triggers
++- Start with a header block:
++  #header Full Name
++
++- Resume sections use one of these triggers (exactly):
++  #section  <Header>
++  #section1 <Header>
++  #section2 <Header>
++
++- Page breaks use this trigger on its own line:
++  #pagebreak
++
++2) Subsection fields inside a section
++- Within a section, entries use these field lines:
++  #title ...
++  #subtitle ...
++  #description ...
++  #date ...
++- Additional lines are plain text.
++- Bullet lines start with "- " (dash + space).
++
++3) Spacing / readability rules
++- Put ONE blank line after each section trigger line.
++- Put ONE blank line between entries (between two #title blocks).
++- Do NOT cram everything into a single paragraph.
++
++4) Header formatting rules (VERY IMPORTANT)
++- After "#header Name", include 3–5 plain contact items on separate lines.
++- Do NOT use labels like "Email:" or "Phone:".
++- Prefer patterns like:
++  mailto:someone@example.com
++  (111) 222-3333
++  github.com/user
++  linkedin.com/in/user
++  yoursite.com
++
++5) Section templates
++- Education: use #title/#subtitle/#date (+ optional GPA/Coursework lines)
++- Experience/Projects: 2–4 bullets starting with "- "
++- Skills: plain lines like "Code: ..." "Tools: ..." (avoid #title)
++
++6) Truthfulness
++- Do NOT invent employers, job titles, tools, certifications, degrees, dates, or metrics.
++- If info is missing, use [fill] placeholders instead of fabricating.
++
++7) Page break rule
++- If the resume is likely to exceed one page OR there are more than 4 sections, insert at least ONE #pagebreak.
++- Default location: after Experience (or after Projects if no Experience).
++- "#pagebreak" must be on its own line with blank lines around it.
++`;
++
++function loadDslRules() {
++  try {
++    const p = path.join(process.cwd(), 'prompts', 'ezcv_dsl_rules.txt');
++    return fs.readFileSync(p, 'utf8');
++  } catch (e) {
++    return DEFAULT_DSL_RULES;
++  }
++}
++
+ function normalizeBaseUrl(baseUrl) {
+   if (!baseUrl) return '';
+   return baseUrl.replace(/\/+$/, '');
+@@ -20,6 +87,100 @@ function hasTrigger(text, key) {
+   return re.test(text || '');
+ }
+ 
++function sanitizeHeaderBlock(text) {
++  // Removes labels like "Email:" and normalizes email to mailto:
++  const lines = (text || '').split(/\r?\n/);
++  const isSectionStart = (l) =>
++    /^\s*#(section|section1|section2|pagebreak)\b/i.test(l);
++  const headerIdx = lines.findIndex((l) => /^\s*#header\b/i.test(l));
++  if (headerIdx === -1) return text;
++
++  let end = lines.length;
++  for (let i = headerIdx + 1; i < lines.length; i += 1) {
++    if (isSectionStart(lines[i])) {
++      end = i;
++      break;
++    }
++  }
++
++  const block = lines.slice(headerIdx, end);
++  const out = [];
++  for (let i = 0; i < block.length; i += 1) {
++    const raw = block[i];
++    if (i === 0) {
++      out.push(raw);
++      continue;
++    }
++
++    let l = raw.trim();
++    if (!l) {
++      out.push(raw);
++      continue;
++    }
++
++    // Strip common labels
++    l = l.replace(
++      /^(email|e-mail|phone|mobile|website|portfolio|linkedin|github)\s*:\s*/i,
++      ''
++    );
++
++    // Normalize email
++    if (/@/.test(l) && !/^mailto:/i.test(l) && !/^https?:/i.test(l)) {
++      const emailMatch = l.match(
++        /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
++      );
++      if (emailMatch) l = `mailto:${emailMatch[0]}`;
++    }
++
++    out.push(l);
++  }
++
++  return [...lines.slice(0, headerIdx), ...out, ...lines.slice(end)].join('\n');
++}
++
++function ensureAtLeastOnePagebreak(text) {
++  const t = text || '';
++  if (/^\s*#pagebreak\b/im.test(t)) return { text: t, inserted: false };
++
++  const lines = t.split(/\r?\n/);
++  const sectionStarts = [];
++  for (let i = 0; i < lines.length; i += 1) {
++    if (
++      /^\s*#section\b/i.test(lines[i]) ||
++      /^\s*#section1\b/i.test(lines[i]) ||
++      /^\s*#section2\b/i.test(lines[i])
++    ) {
++      sectionStarts.push(i);
++    }
++  }
++
++  const shouldBreak = lines.length > 75 || sectionStarts.length > 4;
++  if (!shouldBreak) return { text: t, inserted: false };
++
++  const findSectionLine = (name) =>
++    lines.findIndex((l) =>
++      new RegExp(`^\\s*#section\\d?\\s+${name}\\b`, 'i').test(l)
++    );
++
++  let startIdx = findSectionLine('Experience');
++  if (startIdx === -1) startIdx = findSectionLine('Projects');
++  if (startIdx === -1 && sectionStarts.length >= 3) startIdx = sectionStarts[2];
++  if (startIdx === -1) return { text: t, inserted: false };
++
++  // Find end of section (next block trigger or EOF)
++  let endIdx = lines.length;
++  for (let i = startIdx + 1; i < lines.length; i += 1) {
++    if (/^\s*#(section|section1|section2|header|pagebreak)\b/i.test(lines[i])) {
++      endIdx = i;
++      break;
++    }
++  }
++
++  const insert = ['', '', '#pagebreak', '', ''];
++  const newLines = [...lines.slice(0, endIdx), ...insert, ...lines.slice(endIdx)];
++  return { text: newLines.join('\n'), inserted: true };
++}
++
+ export default async function handler(req, res) {
+   if (req.method !== 'POST') {
+     res.status(405).json({ ok: false, error: 'Method not allowed' });
+@@ -27,7 +188,7 @@ export default async function handler(req, res) {
+   }
+ 
+   try {
+-    const { provider, rawInfo, targetRole, jobDescription } = req.body || {};
++    const { provider, rawInfo, targetRole, jobDescription, safeMode } = req.body || {};
+ 
+     const baseUrl = normalizeBaseUrl(provider?.baseUrl);
+     const model = provider?.model;
+@@ -47,22 +208,18 @@ export default async function handler(req, res) {
+       return;
+     }
+ 
+-    const system = `You are an expert resume writer.
+-You will create an ezcv resume in ezcv plaintext format (the DSL used by this app).
+-
+-Hard rules:
+-- Output ONLY the ezcv plaintext. No markdown. No commentary.
+-- Do NOT invent employers, job titles, tools, certifications, degrees, dates, or metrics.
+-- If information is missing, use a clear placeholder like [fill] rather than fabricating.
+-- Keep it concise and ATS-readable.
++    const dslRules = loadDslRules();
++    const safeLine = safeMode
++      ? '- Interview-safe mode is ON: do not introduce any new numbers/metrics unless they appear in RAW INFO.\n'
++      : '';
++    const system = `${dslRules}
+ 
+-Format rules:
+-- Start with a #header block.
+-- Use #section, #section1, #section2 blocks for sections.
+-- Use #title, #subtitle, #date, #description lines inside sections where appropriate.
+-- Bullet items start with '-' (dash).
++You are an expert resume writer.
++Create an ezcv resume in ezcv plaintext format.
+ 
+-If a job description is provided, align wording ONLY where supported by the raw info. Otherwise, do not add the keyword.`;
++Extra instruction:
++- If a job description is provided, align wording ONLY where supported by the raw info. Otherwise, do not add the keyword.
++${safeLine}`;
+ 
+     const jdBlock =
+       jobDescription && jobDescription.trim().length > 0
+@@ -103,12 +260,16 @@ If a job description is provided, align wording ONLY where supported by the raw
+       return;
+     }
+ 
+-    const content = (pickChatContent(out.json) || '').trim();
++    let content = (pickChatContent(out.json) || '').trim();
+     if (!content) {
+       res.status(502).json({ ok: false, error: 'Empty model response' });
+       return;
+     }
+ 
++    content = sanitizeHeaderBlock(content);
++    const pb = ensureAtLeastOnePagebreak(content);
++    content = pb.text.trim();
++
+     // Basic validation so we don't inject garbage into the editor.
+     const warnings = [];
+     if (!hasTrigger(content, 'header')) {
+@@ -117,6 +278,11 @@ If a job description is provided, align wording ONLY where supported by the raw
+     if (!hasTrigger(content, 'section')) {
+       warnings.push('Generated text does not include any #section blocks.');
+     }
++    if (pb.inserted) {
++      warnings.push(
++        'Inserted a #pagebreak automatically because the generated resume looked longer than one page.'
++      );
++    }
+ 
+     res.status(200).json({ ok: true, generatedText: content, warnings });
+   } catch (err) {
+diff --git a/pages/builder.jsx b/pages/builder.jsx
+index 96ea6c3..6a56aec 100644
+--- a/pages/builder.jsx
++++ b/pages/builder.jsx
+@@ -17,6 +17,7 @@ const DEFAULT_AI_SETTINGS = {
+   apiKey: '',
+   model: 'llama3.1',
+   extraHeaders: {},
++  safeMode: true,
+ };
+ 
+ const styles = {
+@@ -231,6 +232,8 @@ export default function Builder() {
+   };
+ 
+   const onRunAi = async ({ instruction, jobDescription, safeMode }) => {
++    const effectiveSafeMode =
++      typeof safeMode === 'boolean' ? safeMode : aiSettings.safeMode !== false;
+     const response = await fetch('/api/llm/edit-section', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+@@ -244,14 +247,16 @@ export default function Builder() {
+         },
+         instruction,
+         jobDescription,
+-        safeMode,
++        safeMode: effectiveSafeMode,
+         sectionText: selectedText,
+       }),
+     });
+     return response.json();
+   };
+ 
+-  const onGenerateAiDraft = async ({ targetRole, rawInfo, jobDescription }) => {
++  const onGenerateAiDraft = async ({ targetRole, rawInfo, jobDescription, safeMode }) => {
++    const effectiveSafeMode =
++      typeof safeMode === 'boolean' ? safeMode : aiSettings.safeMode !== false;
+     const response = await fetch('/api/llm/generate-resume', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+@@ -266,6 +271,7 @@ export default function Builder() {
+         targetRole,
+         rawInfo,
+         jobDescription,
++        safeMode: effectiveSafeMode,
+       }),
+     });
+     return response.json();
+diff --git a/components/AiAssist/index.jsx b/components/AiAssist/index.jsx
+index e950370..1f49a49 100644
+--- a/components/AiAssist/index.jsx
++++ b/components/AiAssist/index.jsx
+@@ -266,7 +266,11 @@ export default function AiAssist({
+   const [instruction, setInstruction] = useState(PRESETS[0].prompt);
+   const [jobDescription, setJobDescription] = useState('');
+   const [showJD, setShowJD] = useState(false);
+-  const [safeMode, setSafeMode] = useState(true);
++  const safeMode = aiSettings?.safeMode !== false;
++  const setSafeMode = (next) => {
++    if (!setAiSettings) return;
++    setAiSettings({ ...(aiSettings || {}), safeMode: !!next });
++  };
+ 
+   const [result, setResult] = useState(null);
+   const [busy, setBusy] = useState(false);
+@@ -318,6 +322,7 @@ export default function AiAssist({
+         targetRole,
+         rawInfo,
+         jobDescription,
++        safeMode,
+       });
+ 
+       if (out.ok === false) {
+@@ -403,6 +408,19 @@ export default function AiAssist({
+ 
+         {activeTab === 'settings' ? (
+           <Panel>
++            <Row style={{ justifyContent: 'space-between', marginBottom: 10 }}>
++              <Label>
++                <input
++                  type="checkbox"
++                  checked={safeMode}
++                  onChange={(e) => setSafeMode(e.target.checked)}
++                />
++                Interview-safe mode (default)
++              </Label>
++              <SmallNote style={{ margin: 0 }}>
++                When ON, AI won’t introduce new numbers/metrics.
++              </SmallNote>
++            </Row>
+             <FieldGrid>
+               <div>
+                 <div style={{ fontWeight: 800, marginBottom: 6 }}>
+@@ -489,6 +507,17 @@ export default function AiAssist({
+                   placeholder="e.g. Junior Backend Developer"
+                 />
+ 
++                <div style={{ marginTop: 10 }}>
++                  <Label>
++                    <input
++                      type="checkbox"
++                      checked={safeMode}
++                      onChange={(e) => setSafeMode(e.target.checked)}
++                    />
++                    Interview-safe mode
++                  </Label>
++                </div>
++
+                 <div style={{ fontWeight: 800, margin: '10px 0 6px' }}>
+                   Your raw info
+                 </div>
+diff --git a/components/Menu/Windows/AiWindow/index.jsx b/components/Menu/Windows/AiWindow/index.jsx
+index 2cc9e42..6967f65 100644
+--- a/components/Menu/Windows/AiWindow/index.jsx
++++ b/components/Menu/Windows/AiWindow/index.jsx
+@@ -169,6 +169,7 @@ export default function AiWindow({
+         targetRole,
+         rawInfo,
+         jobDescription: includeJD ? jobDescription : '',
++        safeMode: aiSettings?.safeMode !== false,
+       });
+ 
+       if (out.ok === false) {
+@@ -257,6 +258,21 @@ export default function AiWindow({
+           </div>
+         </FieldGrid>
+ 
++        <div style={{ marginTop: 10 }}>
++          <label
++            style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}
++          >
++            <input
++              type="checkbox"
++              checked={aiSettings?.safeMode !== false}
++              onChange={(e) =>
++                setAiSettings({ ...aiSettings, safeMode: e.target.checked })
++              }
++            />
++            Interview-safe mode (recommended)
++          </label>
++        </div>
++
+         <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+           <Button
+             content="Open AI dock"

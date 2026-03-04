@@ -1,0 +1,75 @@
+From f69131a7eb5aa58ad535e9737f067779c2ddc473 Mon Sep 17 00:00:00 2001
+From: a <a@b.c>
+Date: Tue, 3 Mar 2026 19:46:38 +0000
+Subject: [PATCH] fix input overflow
+
+---
+ components/AiAssist/index.jsx              | 6 ++++++
+ components/Menu/Windows/AiWindow/index.jsx | 6 ++++++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/components/AiAssist/index.jsx b/components/AiAssist/index.jsx
+index 5a7414b..e950370 100644
+--- a/components/AiAssist/index.jsx
++++ b/components/AiAssist/index.jsx
+@@ -83,6 +83,8 @@ const Input = styled.input`
+   padding: 10px 12px;
+   outline: none;
+   width: 100%;
++  max-width: 100%;
++  box-sizing: border-box;
+ 
+   &:focus {
+     background: rgba(255, 255, 255, 0.8);
+@@ -95,6 +97,8 @@ const Select = styled.select`
+   border-radius: 12px;
+   padding: 10px 12px;
+   outline: none;
++  max-width: 100%;
++  box-sizing: border-box;
+ `;
+ 
+ const Textarea = styled.textarea`
+@@ -104,6 +108,8 @@ const Textarea = styled.textarea`
+   padding: 10px 12px;
+   outline: none;
+   width: 100%;
++  max-width: 100%;
++  box-sizing: border-box;
+   min-height: 42px;
+   resize: vertical;
+ 
+diff --git a/components/Menu/Windows/AiWindow/index.jsx b/components/Menu/Windows/AiWindow/index.jsx
+index a81d9ce..2cc9e42 100644
+--- a/components/Menu/Windows/AiWindow/index.jsx
++++ b/components/Menu/Windows/AiWindow/index.jsx
+@@ -59,6 +59,8 @@ const Input = styled.input`
+   padding: 10px 12px;
+   outline: none;
+   width: 100%;
++  max-width: 100%;
++  box-sizing: border-box;
+ 
+   &:focus {
+     background: rgba(255, 255, 255, 0.9);
+@@ -72,6 +74,8 @@ const Select = styled.select`
+   padding: 10px 12px;
+   outline: none;
+   width: 100%;
++  max-width: 100%;
++  box-sizing: border-box;
+ `;
+ 
+ const Textarea = styled.textarea`
+@@ -81,6 +85,8 @@ const Textarea = styled.textarea`
+   padding: 10px 12px;
+   outline: none;
+   width: 100%;
++  max-width: 100%;
++  box-sizing: border-box;
+   min-height: 120px;
+   resize: vertical;
+ 
+-- 
+2.47.3
+
