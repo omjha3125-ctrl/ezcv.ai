@@ -567,6 +567,12 @@ export default function AiAssist({
 
       setTailoredText(out.tailoredText || '');
       setTailorWarnings(out.warnings || []);
+    } catch (err) {
+      // Without this, network/parse errors fail silently (button appears to "blink").
+      const msg =
+        (err && (err.message || (typeof err === 'string' ? err : null))) ||
+        'Tailoring failed (network/server error).';
+      setTailorError(String(msg));
     } finally {
       setBusyTailor(false);
     }

@@ -51,6 +51,11 @@ export function parseIntoContent(text, styling = {}, setStyling = () => null) {
   }
 
   function isCurrentSectionEmpty(s) {
+    // Pagebreak blocks are intentionally empty and should NEVER be "reused" by
+    // the next section trigger. Treat them as non-empty so the parser always
+    // starts a new block after a #pagebreak line.
+    if (s?.type === SECTIONS.TYPES.PAGEBREAK) return false;
+
     const { header, body } = s;
     const isEmpty =
       !header && body.length === 1 && isCurrentFieldsEmpty(body[0]);

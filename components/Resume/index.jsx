@@ -84,7 +84,6 @@ function Column({
           selectedSectionId={selectedSectionId}
         />
       )}
-      {index > 0 && <PageBreak key={`page-break-${index.toString()}`} />}
     </div>
   );
 }
@@ -102,10 +101,12 @@ const Resume = React.forwardRef(
     if (object.type === 'pagebreak') {
       contents.push(currentPage);
       currentPage = [];
+      // pagebreak is a separator only; do not render it as a section.
+      continue;
     }
     currentPage.push(object);
   }
-  contents.push(currentPage);
+  if (currentPage.length > 0) contents.push(currentPage);
 
   return (
     <>
@@ -129,16 +130,20 @@ const Resume = React.forwardRef(
         `}</style>
         <div ref={ref}>
           {contents.map((page, index) => (
-            <Column
-              key={`column-${index.toString()}`}
-              index={index}
-              alignment={alignment}
-              page={page}
-              styling={styling}
-              isDarkMode={isDarkMode}
-              onSelectSection={onSelectSection}
-              selectedSectionId={selectedSectionId}
-            />
+            <React.Fragment key={`page-fragment-${index.toString()}`}>
+              <Column
+                index={index}
+                alignment={alignment}
+                page={page}
+                styling={styling}
+                isDarkMode={isDarkMode}
+                onSelectSection={onSelectSection}
+                selectedSectionId={selectedSectionId}
+              />
+              {index < contents.length - 1 ? (
+                <PageBreak className="page-break" />
+              ) : null}
+            </React.Fragment>
           ))}
         </div>
       </Container>

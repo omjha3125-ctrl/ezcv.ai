@@ -350,7 +350,17 @@ export default function Builder() {
       }),
     });
 
-    return response.json();
+    // Be resilient to non-JSON responses (e.g. missing API route, proxy HTML, etc.)
+    const raw = await response.text();
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      return {
+        ok: false,
+        error: `Tailor API returned non-JSON (HTTP ${response.status}).` +
+          (raw ? ` First 120 chars: ${raw.slice(0, 120)}` : ''),
+      };
+    }
   };
 
 

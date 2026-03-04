@@ -1,0 +1,57 @@
+--- a/lib/llm/provider.js
++++ b/lib/llm/provider.js
+@@ -174,15 +174,51 @@
+     const bad = addrs.find((a) => isNonPublicIp(a.address));
+     if (bad) throw new Error('Invalid provider URL');
+ 
+-    validatedAddrs = addrs.map((a) => a.address).filter(Boolean);
++    validatedAddrs = addrs
++      .map((a) => (a && typeof a.address === 'string' ? a.address.trim() : ''))
++      .filter(Boolean);
++
++    // Defensive: never build a custom lookup with an empty address list.
++    // If this happens, treat it as invalid rather than passing undefined to net.connect.
++    if (!Array.isArray(validatedAddrs) || validatedAddrs.length === 0) {
++      throw new Error('Invalid provider URL');
++    }
+   }
+ 
+   // Mitigate basic DNS-rebinding by forcing the TCP connection to use the
+   // addresses validated above (instead of re-resolving during the request).
+   const lookup = validatedAddrs
+     ? (hostname, options, cb) => {
+-        const ip = validatedAddrs[0];
+-        cb(null, ip, net.isIP(ip));
++        // Node may call lookup(hostname, cb) or lookup(hostname, options, cb)
++        let opts = options;
++        let callback = cb;
++        if (typeof opts === 'function') {
++          callback = opts;
++          opts = {};
++        }
++
++        const family =
++          opts && typeof opts === 'object' && typeof opts.family === 'number'
++            ? opts.family
++            : 0;
++
++        let ip = null;
++        if (family === 4 || family === 6) {
++          ip = validatedAddrs.find((a) => net.isIP(a) === family) || null;
++        }
++
++        ip =
++          ip ||
++          validatedAddrs.find((a) => net.isIP(a) === 4) ||
++          validatedAddrs.find((a) => net.isIP(a) === 6) ||
++          validatedAddrs[0];
++
++        if (!ip) {
++          callback(new Error('DNS validation yielded no usable IPs'));
++          return;
++        }
++
++        callback(null, ip, net.isIP(ip));
+       }
+     : undefined;
+ 

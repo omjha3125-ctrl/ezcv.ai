@@ -237,7 +237,8 @@ const PAGEBREAK_SECTION = {
   name: 'Page Break',
   body: [
     {
-      other: ['#pagebreak\nScroll down to see me!'],
+      // Standalone directive; no filler line required.
+      other: ['#pagebreak'],
     },
   ],
   type: TYPES.PAGEBREAK,
